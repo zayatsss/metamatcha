@@ -272,6 +272,31 @@ details.add-account summary {
   opacity: 0.55;
 }
 
+.ticker {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #0d1117;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ticker-symbol {
+  font-weight: 600;
+}
+
+.ticker-bid {
+  color: var(--red);
+}
+
+.ticker-ask {
+  color: var(--green);
+}
+
 .badge {
   margin-left: auto;
   font-size: 11px;

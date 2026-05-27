@@ -7,7 +7,7 @@
 
 import asyncio
 
-from app.brokers.base import BrokerAdapter
+from app.brokers.base import BrokerAdapter, Quote
 from app.brokers.matchtrader_adapter import MatchTraderAdapter
 from app.brokers.mt5_adapter import MT5Adapter
 from app.models import Account, BrokerType
@@ -53,6 +53,16 @@ class BrokerManager:
 
     def active_adapters(self) -> dict[int, BrokerAdapter]:
         return dict(self._adapters)
+
+    async def get_quote(self, symbol: str) -> Quote | None:
+        """Котировка с первого подключённого брокера, у которого есть символ."""
+        for adapter in self._adapters.values():
+            try:
+                if await adapter.is_connected():
+                    return await adapter.get_quote(symbol)
+            except Exception:  # noqa: BLE001 — пробуем следующего брокера
+                continue
+        return None
 
 
 broker_manager = BrokerManager()

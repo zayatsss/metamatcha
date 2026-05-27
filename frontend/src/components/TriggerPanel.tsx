@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "../api";
 import type { Trigger, TriggerAction } from "../types";
+import { PriceTicker } from "./PriceTicker";
 
 interface Props {
   tradeGroupId: number | null;
@@ -72,6 +73,8 @@ export function TriggerPanel({ tradeGroupId, symbol, triggers, onChanged }: Prop
   return (
     <section className="panel">
       <h2>Сопровождение (триггеры)</h2>
+
+      {tradeGroupId !== null && <PriceTicker symbol={symbol} />}
 
       {tradeGroupId === null ? (
         <p className="muted">Сначала откройте сделку — триггеры привяжутся к ней.</p>

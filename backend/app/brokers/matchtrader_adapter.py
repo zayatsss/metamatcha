@@ -10,7 +10,7 @@ MatchTrader предоставляет HTTP API брокера и WS-поток 
 
 import httpx
 
-from app.brokers.base import BrokerAdapter, OrderResult, Position
+from app.brokers.base import BrokerAdapter, OrderResult, Position, Quote
 from app.models import OrderSide, OrderType
 from app.risk import SymbolSpec
 
@@ -69,11 +69,11 @@ class MatchTraderAdapter(BrokerAdapter):
             volume_step=float(d.get("volumeStep", 0.01)),
         )
 
-    async def get_price(self, symbol: str) -> float:
+    async def get_quote(self, symbol: str) -> Quote:
         resp = await self._client.get(self.QUOTE_PATH.format(symbol=symbol), headers=self._headers())
         resp.raise_for_status()
         d = resp.json()
-        return (float(d["bid"]) + float(d["ask"])) / 2.0
+        return Quote(symbol=symbol, bid=float(d["bid"]), ask=float(d["ask"]))
 
     async def place_order(self, *, symbol, side, order_type, volume, price, sl, tp) -> OrderResult:
         payload = {

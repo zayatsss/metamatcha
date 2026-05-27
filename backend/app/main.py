@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import init_db
-from app.routers import accounts, orders, triggers
+from app.routers import accounts, orders, prices, triggers
 from app.workers.trigger_monitor import trigger_monitor
 
 logging.basicConfig(level=logging.INFO)
@@ -31,6 +31,7 @@ app.add_middleware(
 
 app.include_router(accounts.router)
 app.include_router(orders.router)
+app.include_router(prices.router)
 app.include_router(triggers.router)
 
 

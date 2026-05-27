@@ -3,6 +3,7 @@ import type {
   AccountCreate,
   OrderRequest,
   OrderResponse,
+  Quote,
   Trigger,
   TriggerCreate,
 } from "./types";
@@ -34,6 +35,9 @@ export const api = {
 
   executeOrder: (payload: OrderRequest) =>
     request<OrderResponse>("/orders/execute", { method: "POST", body: JSON.stringify(payload) }),
+
+  getPrices: (symbols: string[]) =>
+    request<Quote[]>(`/prices?symbols=${encodeURIComponent(symbols.join(","))}`),
 
   listTriggers: () => request<Trigger[]>("/triggers"),
   createTrigger: (payload: TriggerCreate) =>

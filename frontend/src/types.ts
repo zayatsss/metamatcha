@@ -26,6 +26,13 @@ export interface AccountCreate {
   risk_percent: number;
 }
 
+export interface Quote {
+  symbol: string;
+  bid: number;
+  ask: number;
+  mid: number;
+}
+
 export interface OrderRequest {
   account_ids: number[];
   symbol: string;

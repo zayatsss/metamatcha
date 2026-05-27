@@ -11,7 +11,7 @@
 
 import asyncio
 
-from app.brokers.base import BrokerAdapter, OrderResult, Position
+from app.brokers.base import BrokerAdapter, OrderResult, Position, Quote
 from app.models import OrderSide, OrderType
 from app.risk import SymbolSpec
 
@@ -77,11 +77,11 @@ class MT5Adapter(BrokerAdapter):
             volume_step=info.volume_step,
         )
 
-    async def get_price(self, symbol: str) -> float:
+    async def get_quote(self, symbol: str) -> Quote:
         tick = await asyncio.to_thread(self._mt5.symbol_info_tick, symbol)
         if tick is None:
             raise RuntimeError(f"no tick for {symbol}")
-        return (tick.bid + tick.ask) / 2.0
+        return Quote(symbol=symbol, bid=tick.bid, ask=tick.ask)
 
     async def place_order(self, *, symbol, side, order_type, volume, price, sl, tp) -> OrderResult:
         mt5 = self._mt5

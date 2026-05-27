@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "../api";
 import type { Account, ExecResult, OrderSide, OrderType } from "../types";
+import { PriceTicker } from "./PriceTicker";
 
 interface Props {
   accounts: Account[];
@@ -53,6 +54,8 @@ export function OrderPanel({ accounts, onTradeOpened }: Props) {
   return (
     <section className="panel">
       <h2>Вход в позицию</h2>
+
+      <PriceTicker symbol={symbol} />
 
       <div className="account-picker">
         {connectedAccounts.length === 0 && (

@@ -27,6 +27,17 @@ class OrderResult:
     message: str = ""
 
 
+@dataclass
+class Quote:
+    symbol: str
+    bid: float
+    ask: float
+
+    @property
+    def mid(self) -> float:
+        return (self.bid + self.ask) / 2.0
+
+
 class BrokerAdapter(ABC):
     """Один экземпляр на один подключённый аккаунт."""
 
@@ -46,8 +57,13 @@ class BrokerAdapter(ABC):
     async def get_symbol_spec(self, symbol: str) -> SymbolSpec: ...
 
     @abstractmethod
+    async def get_quote(self, symbol: str) -> Quote:
+        """Текущая котировка Bid/Ask напрямую с брокера."""
+
     async def get_price(self, symbol: str) -> float:
-        """Текущая цена (используется фоновым воркером для проверки триггеров)."""
+        """Средняя цена — используется воркером триггеров. По умолчанию из котировки."""
+        quote = await self.get_quote(symbol)
+        return quote.mid
 
     @abstractmethod
     async def place_order(
