@@ -64,14 +64,15 @@ class MT5Adapter(BrokerAdapter):
         info = await asyncio.to_thread(mt5.symbol_info, symbol)
         if info is None:
             raise RuntimeError(f"symbol {symbol} not found in MT5")
-        # pip = 10 пунктов для 5/3-значных котировок, иначе 1 пункт.
-        pip_size = info.point * (10 if info.digits in (3, 5) else 1)
-        # Стоимость пункта на 1 лот = trade_tick_value * (pip_size / trade_tick_size).
-        pip_value_per_lot = info.trade_tick_value * (pip_size / info.trade_tick_size)
+        # MT5 отдаёт сырые свойства инструмента напрямую — пробрасываем их как есть.
+        # trade_tick_value уже учитывает contract_size и конвертацию в валюту счёта.
         return SymbolSpec(
             symbol=symbol,
-            pip_size=pip_size,
-            pip_value_per_lot=pip_value_per_lot,
+            digits=info.digits,
+            point=info.point,
+            contract_size=info.trade_contract_size,
+            tick_size=info.trade_tick_size,
+            tick_value=info.trade_tick_value,
             volume_min=info.volume_min,
             volume_max=info.volume_max,
             volume_step=info.volume_step,

@@ -60,13 +60,34 @@ class MatchTraderAdapter(BrokerAdapter):
         resp = await self._client.get(self.SYMBOL_PATH.format(symbol=symbol), headers=self._headers())
         resp.raise_for_status()
         d = resp.json()
-        return SymbolSpec(
+        digits = int(d["digits"])
+        point = float(d.get("point", 10 ** (-digits)))
+        # Если брокер отдаёт tickValue — используем напрямую; иначе выводим из
+        # contractSize (через from_contract), при необходимости с курсом конвертации.
+        if d.get("tickValue") is not None:
+            return SymbolSpec(
+                symbol=symbol,
+                digits=digits,
+                point=point,
+                contract_size=float(d["contractSize"]),
+                tick_size=float(d.get("tickSize", point)),
+                tick_value=float(d["tickValue"]),
+                volume_min=float(d.get("volumeMin", 0.01)),
+                volume_max=float(d.get("volumeMax", 100.0)),
+                volume_step=float(d.get("volumeStep", 0.01)),
+                pip_size_override=float(d["pipSize"]) if d.get("pipSize") else None,
+            )
+        return SymbolSpec.from_contract(
             symbol=symbol,
-            pip_size=float(d["pipSize"]),
-            pip_value_per_lot=float(d["pipValuePerLot"]),
+            digits=digits,
+            point=point,
+            contract_size=float(d["contractSize"]),
+            tick_size=float(d.get("tickSize", point)),
+            quote_to_account_rate=float(d.get("quoteToAccountRate", 1.0)),
             volume_min=float(d.get("volumeMin", 0.01)),
             volume_max=float(d.get("volumeMax", 100.0)),
             volume_step=float(d.get("volumeStep", 0.01)),
+            pip_size_override=float(d["pipSize"]) if d.get("pipSize") else None,
         )
 
     async def get_quote(self, symbol: str) -> Quote:
