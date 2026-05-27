@@ -11,6 +11,9 @@ node_modules/
 .next/
 dist/
 build/
+*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
 
 # OS / editors
 .DS_Store
