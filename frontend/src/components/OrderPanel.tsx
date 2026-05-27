@@ -116,7 +116,7 @@ export function OrderPanel({ accounts, onTradeOpened }: Props) {
             <li key={r.account_id} className={r.ok ? "ok" : "err"}>
               <b>{r.label}:</b>{" "}
               {r.ok
-                ? `лот ${r.lot} · риск $${r.risk_amount} · #${r.ticket}`
+                ? `лот ${r.lot} · баланс $${r.balance?.toLocaleString()} @ ${r.reference_price} · риск $${r.risk_amount} · #${r.ticket}`
                 : `ошибка — ${r.message}`}
             </li>
           ))}

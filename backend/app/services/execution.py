@@ -1,11 +1,21 @@
 """Исполнение сделки в один клик на всех выбранных аккаунтах.
 
-Для каждого аккаунта:
-  1) берём спецификацию символа у его брокера,
-  2) считаем индивидуальный лот по риску аккаунта,
-  3) отправляем ордер.
+Каждый аккаунт обслуживается НЕЗАВИСИМО и тянет свои данные со своего же
+подключения к брокеру:
+  1) живой баланс счёта,
+  2) спецификацию инструмента (contract_size / tick_value зависят от валюты
+     счёта и потому у каждого аккаунта свои),
+  3) свою рыночную цену (для market-ордера — дистанция SL считается от цены
+     именно этого брокера; цены у разных брокеров могут отличаться),
+  4) считает индивидуальный лот по риску аккаунта,
+  5) отправляет ордер.
 Аккаунты обрабатываются параллельно (asyncio.gather), чтобы вход был
-максимально одновременным."""
+максимально одновременным.
+
+Важно: внутри gather мы НЕ трогаем БД-сессию (она не предназначена для
+конкурентного использования) — живые балансы возвращаем наружу и пишем в БД
+последовательно уже после сбора результатов.
+"""
 
 import asyncio
 from dataclasses import asdict, dataclass
@@ -23,6 +33,8 @@ class AccountExecution:
     label: str
     ok: bool
     lot: float | None = None
+    balance: float | None = None        # живой баланс, подтянутый с брокера
+    reference_price: float | None = None  # цена, от которой считалась дистанция SL
     risk_amount: float | None = None
     ticket: str | None = None
     message: str = ""
@@ -34,7 +46,7 @@ async def _execute_on_account(
     symbol: str,
     side: OrderSide,
     order_type: OrderType,
-    reference_price: float,
+    entry_price: float | None,
     sl_price: float,
     tp_price: float | None,
 ) -> AccountExecution:
@@ -43,14 +55,24 @@ async def _execute_on_account(
         if not await adapter.is_connected():
             return AccountExecution(account.id, account.label, ok=False, message="not connected")
 
+        # 1) Все исходные данные тянем отдельно с этого аккаунта.
+        balance = await adapter.get_balance()
         spec = await adapter.get_symbol_spec(symbol)
+        if order_type == OrderType.LIMIT:
+            reference_price = entry_price
+        else:
+            reference_price = await adapter.get_price(symbol)
+
+        # 2) Лот считаем из индивидуальных данных аккаунта.
         calc = calculate_lot_from_prices(
-            balance=account.balance,
+            balance=balance,
             risk_percent=account.risk_percent,
             entry_price=reference_price,
             sl_price=sl_price,
             spec=spec,
         )
+
+        # 3) Отправляем ордер.
         result = await adapter.place_order(
             symbol=symbol,
             side=side,
@@ -65,6 +87,8 @@ async def _execute_on_account(
             label=account.label,
             ok=result.ok,
             lot=calc.lot,
+            balance=round(balance, 2),
+            reference_price=reference_price,
             risk_amount=round(calc.risk_amount_effective, 2),
             ticket=result.ticket,
             message=result.message,
@@ -86,13 +110,6 @@ async def execute_trade(
 ) -> tuple[TradeGroup, list[dict]]:
     accounts = db.query(Account).filter(Account.id.in_(account_ids), Account.is_active.is_(True)).all()
 
-    # Для market-ордера эталонную цену (для расчёта дистанции SL) берём с рынка
-    # у первого доступного адаптера; для limit — это сама цена входа.
-    reference_price = entry_price
-    if order_type == OrderType.MARKET and accounts:
-        adapter = await broker_manager.get_adapter(accounts[0])
-        reference_price = await adapter.get_price(symbol)
-
     results = await asyncio.gather(
         *[
             _execute_on_account(
@@ -100,7 +117,7 @@ async def execute_trade(
                 symbol=symbol,
                 side=side,
                 order_type=order_type,
-                reference_price=reference_price,
+                entry_price=entry_price,
                 sl_price=sl_price,
                 tp_price=tp_price,
             )
@@ -108,11 +125,17 @@ async def execute_trade(
         ]
     )
 
+    # Освежаем балансы в БД из живых значений (последовательно, после gather).
+    by_id = {acc.id: acc for acc in accounts}
+    for r in results:
+        if r.balance is not None and r.account_id in by_id:
+            by_id[r.account_id].balance = r.balance
+
     group = TradeGroup(
         symbol=symbol,
         side=side,
         order_type=order_type,
-        entry_price=reference_price,
+        entry_price=entry_price,
         sl_price=sl_price,
         tp_price=tp_price,
     )

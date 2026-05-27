@@ -48,6 +48,8 @@ export interface ExecResult {
   label: string;
   ok: boolean;
   lot: number | null;
+  balance: number | null;
+  reference_price: number | null;
   risk_amount: number | null;
   ticket: string | null;
   message: string;
