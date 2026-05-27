@@ -40,6 +40,49 @@ class AccountExecution:
     message: str = ""
 
 
+async def _quote_account(
+    account: Account,
+    *,
+    symbol: str,
+    order_type: OrderType,
+    entry_price: float | None,
+    sl_price: float,
+) -> AccountExecution:
+    """Тянет данные аккаунта и считает лот — БЕЗ отправки ордера (предпросмотр)."""
+    adapter = await broker_manager.get_adapter(account)
+    if not await adapter.is_connected():
+        return AccountExecution(account.id, account.label, ok=False, message="not connected")
+
+    # Все исходные данные тянем отдельно с этого аккаунта.
+    balance = await adapter.get_balance()
+    spec = await adapter.get_symbol_spec(symbol)
+    reference_price = entry_price if order_type == OrderType.LIMIT else await adapter.get_price(symbol)
+
+    calc = calculate_lot_from_prices(
+        balance=balance,
+        risk_percent=account.risk_percent,
+        entry_price=reference_price,
+        sl_price=sl_price,
+        spec=spec,
+    )
+    return AccountExecution(
+        account_id=account.id,
+        label=account.label,
+        ok=True,
+        lot=calc.lot,
+        balance=round(balance, 2),
+        reference_price=reference_price,
+        risk_amount=round(calc.risk_amount_effective, 2),
+    )
+
+
+async def _safe_quote(account: Account, **kwargs) -> AccountExecution:
+    try:
+        return await _quote_account(account, **kwargs)
+    except Exception as exc:  # noqa: BLE001 — изолируем сбой на уровне аккаунта
+        return AccountExecution(account.id, account.label, ok=False, message=str(exc))
+
+
 async def _execute_on_account(
     account: Account,
     *,
@@ -50,51 +93,48 @@ async def _execute_on_account(
     sl_price: float,
     tp_price: float | None,
 ) -> AccountExecution:
+    quote = await _safe_quote(
+        account, symbol=symbol, order_type=order_type, entry_price=entry_price, sl_price=sl_price
+    )
+    if not quote.ok or quote.lot is None:
+        return quote
     try:
         adapter = await broker_manager.get_adapter(account)
-        if not await adapter.is_connected():
-            return AccountExecution(account.id, account.label, ok=False, message="not connected")
-
-        # 1) Все исходные данные тянем отдельно с этого аккаунта.
-        balance = await adapter.get_balance()
-        spec = await adapter.get_symbol_spec(symbol)
-        if order_type == OrderType.LIMIT:
-            reference_price = entry_price
-        else:
-            reference_price = await adapter.get_price(symbol)
-
-        # 2) Лот считаем из индивидуальных данных аккаунта.
-        calc = calculate_lot_from_prices(
-            balance=balance,
-            risk_percent=account.risk_percent,
-            entry_price=reference_price,
-            sl_price=sl_price,
-            spec=spec,
-        )
-
-        # 3) Отправляем ордер.
         result = await adapter.place_order(
             symbol=symbol,
             side=side,
             order_type=order_type,
-            volume=calc.lot,
-            price=reference_price if order_type == OrderType.LIMIT else None,
+            volume=quote.lot,
+            price=quote.reference_price if order_type == OrderType.LIMIT else None,
             sl=sl_price,
             tp=tp_price,
         )
-        return AccountExecution(
-            account_id=account.id,
-            label=account.label,
-            ok=result.ok,
-            lot=calc.lot,
-            balance=round(balance, 2),
-            reference_price=reference_price,
-            risk_amount=round(calc.risk_amount_effective, 2),
-            ticket=result.ticket,
-            message=result.message,
-        )
-    except Exception as exc:  # noqa: BLE001 — на уровне аккаунта изолируем сбой
+        quote.ok = result.ok
+        quote.ticket = result.ticket
+        quote.message = result.message
+        return quote
+    except Exception as exc:  # noqa: BLE001
         return AccountExecution(account.id, account.label, ok=False, message=str(exc))
+
+
+async def preview_trade(
+    db: Session,
+    *,
+    account_ids: list[int],
+    symbol: str,
+    order_type: OrderType,
+    entry_price: float | None,
+    sl_price: float,
+) -> list[dict]:
+    """Рассчитать лоты по всем аккаунтам без отправки ордеров."""
+    accounts = db.query(Account).filter(Account.id.in_(account_ids), Account.is_active.is_(True)).all()
+    results = await asyncio.gather(
+        *[
+            _safe_quote(acc, symbol=symbol, order_type=order_type, entry_price=entry_price, sl_price=sl_price)
+            for acc in accounts
+        ]
+    )
+    return [asdict(r) for r in results]
 
 
 async def execute_trade(

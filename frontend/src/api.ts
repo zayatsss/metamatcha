@@ -1,6 +1,7 @@
 import type {
   Account,
   AccountCreate,
+  ExecResult,
   OrderRequest,
   OrderResponse,
   Quote,
@@ -33,6 +34,11 @@ export const api = {
   disconnectAccount: (id: number) =>
     request<{ ok: boolean }>(`/accounts/${id}/disconnect`, { method: "POST" }),
 
+  previewOrder: (payload: OrderRequest) =>
+    request<{ results: ExecResult[] }>("/orders/preview", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   executeOrder: (payload: OrderRequest) =>
     request<OrderResponse>("/orders/execute", { method: "POST", body: JSON.stringify(payload) }),
 

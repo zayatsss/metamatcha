@@ -272,6 +272,49 @@ details.add-account summary {
   opacity: 0.55;
 }
 
+.preview {
+  background: #0d1117;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 4px 0 12px;
+}
+
+.preview-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.preview-table th {
+  text-align: left;
+  color: var(--muted);
+  font-weight: 500;
+  padding: 4px 6px;
+}
+
+.preview-table td {
+  padding: 4px 6px;
+  border-top: 1px solid var(--border);
+}
+
+.preview-table td.lot {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.preview-table tr.err td {
+  color: var(--red);
+}
+
 .ticker {
   display: flex;
   align-items: center;

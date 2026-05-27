@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 import type { Account, ExecResult, OrderSide, OrderType } from "../types";
 import { PriceTicker } from "./PriceTicker";
@@ -16,6 +16,8 @@ export function OrderPanel({ accounts, onTradeOpened }: Props) {
   const [entry, setEntry] = useState("");
   const [sl, setSl] = useState("");
   const [tp, setTp] = useState("");
+  const [preview, setPreview] = useState<ExecResult[]>([]);
+  const [previewing, setPreviewing] = useState(false);
   const [results, setResults] = useState<ExecResult[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -25,20 +27,58 @@ export function OrderPanel({ accounts, onTradeOpened }: Props) {
 
   const connectedAccounts = accounts.filter((a) => a.connected);
 
+  const inputsValid =
+    selected.length > 0 && !!sl && (orderType === "market" || !!entry);
+
+  const buildPayload = useCallback(
+    () => ({
+      account_ids: selected,
+      symbol,
+      side,
+      order_type: orderType,
+      entry_price: orderType === "limit" ? Number(entry) : null,
+      sl_price: Number(sl),
+      tp_price: tp ? Number(tp) : null,
+    }),
+    [selected, symbol, side, orderType, entry, sl, tp],
+  );
+
+  // Авторасчёт лотов: при изменении входных данных дёргаем предпросмотр
+  // (с дебаунсом) и периодически обновляем, т.к. рыночная цена двигается.
+  useEffect(() => {
+    if (!inputsValid) {
+      setPreview([]);
+      return;
+    }
+    let cancelled = false;
+
+    async function run() {
+      setPreviewing(true);
+      try {
+        const data = await api.previewOrder(buildPayload());
+        if (!cancelled) setPreview(data.results);
+      } catch {
+        if (!cancelled) setPreview([]);
+      } finally {
+        if (!cancelled) setPreviewing(false);
+      }
+    }
+
+    const debounce = setTimeout(run, 400);
+    const interval = setInterval(run, 3000);
+    return () => {
+      cancelled = true;
+      clearTimeout(debounce);
+      clearInterval(interval);
+    };
+  }, [inputsValid, buildPayload]);
+
   async function submit() {
     setBusy(true);
     setError("");
     setResults([]);
     try {
-      const data = await api.executeOrder({
-        account_ids: selected,
-        symbol,
-        side,
-        order_type: orderType,
-        entry_price: orderType === "limit" ? Number(entry) : null,
-        sl_price: Number(sl),
-        tp_price: tp ? Number(tp) : null,
-      });
+      const data = await api.executeOrder(buildPayload());
       setResults(data.results);
       onTradeOpened(data.trade_group_id, symbol);
     } catch (e) {
@@ -48,8 +88,7 @@ export function OrderPanel({ accounts, onTradeOpened }: Props) {
     }
   }
 
-  const canSubmit =
-    selected.length > 0 && !!sl && (orderType === "market" || !!entry) && !busy;
+  const totalLot = preview.reduce((sum, r) => sum + (r.lot ?? 0), 0);
 
   return (
     <section className="panel">
@@ -58,9 +97,7 @@ export function OrderPanel({ accounts, onTradeOpened }: Props) {
       <PriceTicker symbol={symbol} />
 
       <div className="account-picker">
-        {connectedAccounts.length === 0 && (
-          <p className="muted">Нет подключённых аккаунтов</p>
-        )}
+        {connectedAccounts.length === 0 && <p className="muted">Нет подключённых аккаунтов</p>}
         {connectedAccounts.map((a) => (
           <label key={a.id} className="checkbox">
             <input type="checkbox" checked={selected.includes(a.id)} onChange={() => toggle(a.id)} />
@@ -104,7 +141,39 @@ export function OrderPanel({ accounts, onTradeOpened }: Props) {
         </label>
       </div>
 
-      <button className={`primary ${side}`} disabled={!canSubmit} onClick={submit}>
+      {/* Авторасчёт лотов до отправки */}
+      {inputsValid && (
+        <div className="preview">
+          <div className="preview-head">
+            <span>Расчёт лотов {previewing && <span className="muted">обновление…</span>}</span>
+            <span className="muted">Σ {totalLot.toFixed(2)} лот</span>
+          </div>
+          <table className="preview-table">
+            <thead>
+              <tr>
+                <th>Аккаунт</th>
+                <th>Баланс</th>
+                <th>Цена</th>
+                <th>Лот</th>
+                <th>Риск $</th>
+              </tr>
+            </thead>
+            <tbody>
+              {preview.map((r) => (
+                <tr key={r.account_id} className={r.ok ? "" : "err"}>
+                  <td>{r.label}</td>
+                  <td>{r.ok ? `$${r.balance?.toLocaleString()}` : "—"}</td>
+                  <td>{r.ok ? r.reference_price : "—"}</td>
+                  <td className="lot">{r.ok ? r.lot : "—"}</td>
+                  <td>{r.ok ? `$${r.risk_amount}` : r.message}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <button className={`primary ${side}`} disabled={!inputsValid || busy} onClick={submit}>
         {busy ? "Отправка…" : `Вход ${side.toUpperCase()} (${selected.length} акк.)`}
       </button>
 
