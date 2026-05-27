@@ -46,15 +46,17 @@ async def connect_account(account_id: int, db: Session = Depends(get_db)) -> Acc
         raise HTTPException(404, "account not found")
     try:
         ok = await broker_manager.connect(account)
-    except Exception as exc:  # noqa: BLE001 — показываем причину пользователю
+        if not ok:
+            await broker_manager.disconnect(account_id)
+            raise HTTPException(502, "Брокер отклонил подключение (проверьте логин/пароль/сервер)")
+        # Подтянем актуальный баланс из терминала/брокера.
+        adapter = await broker_manager.get_adapter(account)
+        account.balance = await adapter.get_balance()
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001 — показываем причину пользователю, а не 500
         await broker_manager.disconnect(account_id)
         raise HTTPException(502, f"Не удалось подключиться: {exc}") from exc
-    if not ok:
-        await broker_manager.disconnect(account_id)
-        raise HTTPException(502, "Брокер отклонил подключение (проверьте логин/пароль/сервер)")
-    # Подтянем актуальный баланс из терминала/брокера.
-    adapter = await broker_manager.get_adapter(account)
-    account.balance = await adapter.get_balance()
     db.commit()
     db.refresh(account)
     dto = AccountOut.model_validate(account)
