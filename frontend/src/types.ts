@@ -1,4 +1,4 @@
-export type BrokerType = "mt5" | "matchtrader";
+export type BrokerType = "mt5" | "matchtrader" | "demo";
 export type OrderSide = "buy" | "sell";
 export type OrderType = "market" | "limit";
 export type TriggerAction = "break_even" | "partial_tp" | "custom_sl_move";

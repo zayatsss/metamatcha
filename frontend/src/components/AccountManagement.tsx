@@ -111,20 +111,25 @@ export function AccountManagement({ accounts, onChanged }: Props) {
             <select value={form.broker} onChange={(e) => set("broker", e.target.value as BrokerType)}>
               <option value="mt5">MetaTrader 5</option>
               <option value="matchtrader">MatchTrader</option>
+              <option value="demo">Demo (симулятор)</option>
             </select>
           </label>
-          <label>
-            Логин
-            <input value={form.login} onChange={(e) => set("login", e.target.value)} />
-          </label>
-          <label>
-            Пароль
-            <input type="password" value={form.password} onChange={(e) => set("password", e.target.value)} />
-          </label>
-          <label>
-            Сервер
-            <input value={form.server} onChange={(e) => set("server", e.target.value)} />
-          </label>
+          {form.broker !== "demo" && (
+            <>
+              <label>
+                Логин
+                <input value={form.login} onChange={(e) => set("login", e.target.value)} />
+              </label>
+              <label>
+                Пароль
+                <input type="password" value={form.password} onChange={(e) => set("password", e.target.value)} />
+              </label>
+              <label>
+                Сервер
+                <input value={form.server} onChange={(e) => set("server", e.target.value)} />
+              </label>
+            </>
+          )}
           {form.broker === "matchtrader" && (
             <label>
               API base URL
@@ -153,7 +158,11 @@ export function AccountManagement({ accounts, onChanged }: Props) {
             />
           </label>
         </div>
-        <button className="primary" disabled={!form.label || !form.login} onClick={submit}>
+        <button
+          className="primary"
+          disabled={!form.label || (form.broker !== "demo" && !form.login)}
+          onClick={submit}
+        >
           Сохранить аккаунт
         </button>
       </details>

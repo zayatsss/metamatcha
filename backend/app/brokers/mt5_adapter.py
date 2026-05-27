@@ -27,7 +27,14 @@ class MT5Adapter(BrokerAdapter):
 
     def _ensure_lib(self):
         if self._mt5 is None:
-            import MetaTrader5 as mt5  # ленивый импорт (только на Windows-хосте)
+            try:
+                import MetaTrader5 as mt5  # ленивый импорт (только на Windows-хосте)
+            except ImportError as exc:
+                raise RuntimeError(
+                    "Пакет MetaTrader5 не установлен. MT5 работает только на Windows "
+                    "с установленным пакетом (pip install MetaTrader5) и запущенным "
+                    "терминалом MT5. Для теста без терминала используйте брокера 'demo'."
+                ) from exc
 
             self._mt5 = mt5
         return self._mt5

@@ -14,6 +14,7 @@ def utcnow() -> datetime:
 class BrokerType(str, enum.Enum):
     MT5 = "mt5"
     MATCHTRADER = "matchtrader"
+    DEMO = "demo"  # симулятор для теста без реального терминала/API
 
 
 class OrderType(str, enum.Enum):

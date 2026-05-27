@@ -8,6 +8,7 @@
 import asyncio
 
 from app.brokers.base import BrokerAdapter, Quote
+from app.brokers.demo_adapter import DemoAdapter
 from app.brokers.matchtrader_adapter import MatchTraderAdapter
 from app.brokers.mt5_adapter import MT5Adapter
 from app.models import Account, BrokerType
@@ -20,6 +21,8 @@ class BrokerManager:
         self._lock = asyncio.Lock()
 
     def _build(self, account: Account) -> BrokerAdapter:
+        if account.broker == BrokerType.DEMO:
+            return DemoAdapter(balance=account.balance)
         password = decrypt_password(account.password_enc)
         if account.broker == BrokerType.MT5:
             return MT5Adapter(login=account.login, password=password, server=account.server)
