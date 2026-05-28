@@ -138,7 +138,6 @@ table.accounts-table {
 }
 
 .form-grid label,
-.account-picker label,
 .checkbox {
   display: flex;
   flex-direction: column;
